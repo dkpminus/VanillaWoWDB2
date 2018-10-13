@@ -4,6 +4,8 @@ require_once('includes/allspells.php');
 require_once('includes/allquests.php');
 require_once('includes/allnpcs.php');
 require_once('includes/allcomments.php');
+require_once('includes/allcommentswh.php');
+require_once('includes/allcommentsalkz.php');
 
 // Настраиваем Smarty ;)
 $smarty->config_load($conf_file, 'npc');
@@ -57,6 +59,18 @@ if(!$npc = load_cache(1, $cache_key))
         $npc['mindmg'] = ($row['mindmg'] /* + $row['attackpower'] */) * $row['dmg_multiplier'];
         $npc['maxdmg'] = ($row['maxdmg'] /* + $row['attackpower'] */) * $row['dmg_multiplier'];
 		
+		# Get NPC Attack speed
+		$npc['attackspeed'] = number_format(($row['baseattacktime']/1000),2);
+		$npc['dps'] = number_format((($npc['mindmg']+$npc['maxdmg'])/2)/$npc['attackspeed'],2);
+		
+		# NPC Resistances		
+		$npc['resistance1'] = $row['resistance1'];
+		$npc['resistance2'] = $row['resistance2'];
+		$npc['resistance3'] = $row['resistance3'];
+		$npc['resistance4'] = $row['resistance4'];
+		$npc['resistance5'] = $row['resistance5'];
+		$npc['resistance6'] = $row['resistance6'];
+		
 		$toDiv = array('minhealth', 'maxmana', 'minmana', 'maxhealth', 'armor', 'mindmg', 'maxdmg');
 		// Разделяем на тысячи (ххххххххх => ххх,ххх,ххх)
 		foreach($toDiv as $e)
@@ -90,11 +104,11 @@ if(!$npc = load_cache(1, $cache_key))
 		for($j=1;$j<4;$j++)
 		{
 			$tmp2 = $DB->select('
-				SELECT action?d_param1
+				SELECT datalong
 				FROM creature_ai_scripts
 				WHERE
-					creature_id=?d
-					AND action?d_type=11
+					id=?d
+					AND dataint=11
 				',
 				$j,
 				$npc['entry'],
@@ -314,6 +328,8 @@ $smarty->assign('page', $page);
 
 // Комментарии
 $smarty->assign('comments', getcomments($page['type'], $page['typeid']));
+$smarty->assign('commentswh', getcommentswh($page['type'], $page['typeid']));
+$smarty->assign('commentsalkz', getcommentsalkz($page['type'], $page['typeid']));
 
 // Если хоть одна информация о вещи найдена - передаём массив с информацией о вещях шаблонизатору
 $smarty->assign('allitems', $allitems);

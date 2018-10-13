@@ -7,6 +7,8 @@
 
 				<script type="text/javascript">
 					{include file='bricks/allcomments.tpl'}
+					{include file='bricks/allcommentswh.tpl'}
+					{include file='bricks/allcommentsalkz.tpl'}
 					var g_pageInfo = {ldelim}type: {$page.type}, typeId: {$page.typeid}, name: '{$item.name|escape:"quotes"}'{rdelim};
 					g_initPath({$page.path});
 				</script>
@@ -42,8 +44,32 @@
 				</table>
 
 				<div class="text">
-
-					<a href="http://www.wowhead.com/?{$query}" class="button-red"><em><b><i>Wowhead</i></b><span>Wowhead</span></em></a>
+										{strip}
+					<a href="javascript:;" class="button-red" onclick="this.blur(); g_getIngameLink(
+						{if $item.quality==0}
+							'ff9d9d9d',
+						{elseif $item.quality==1}
+							'ffffffff',
+						{elseif $item.quality==2}
+							'ff1eff00',
+						{elseif $item.quality==3}
+							'ff0070dd',
+						{elseif $item.quality==4}
+							'ffa335ee',
+						{elseif $item.quality==5}
+							'ffff8000',
+						{elseif $item.quality==6}
+							'ffe5cc80',
+						{elseif $item.quality==7}
+							'ffe5cc80',
+						{elseif $item.quality==8}
+							'ffffff98',
+						{else}
+							'ff71d5ff',
+						{/if}
+						'item:{$item.entry}:0:0:0:0:0:0:0:0', '{$item.name|replace:'"':'\\\\&quot;'}')">
+					<em><b><i>Link</i></b><span>{#Game_link#}</span></em></a>
+					{/strip}
 					<h1>{$item.name}</h1>
 
 					<div id="icon{$item.entry}-generic" style="float: left"></div>
@@ -94,6 +120,8 @@ var tabsRelated = new Tabs({ldelim}parent: ge('tabs-generic'){rdelim});
 {if isset($item.milledfrom)}{include			file='bricks/item_table.tpl'			id='milling'				tabsid='tabsRelated' data=$item.milledfrom			name='milledfrom'		}{/if}
 {if isset($item.criteria_of)}{include 			file='bricks/achievement_table.tpl' 	id='criteria-of'			tabsid='tabsRelated' data=$item.criteria_of			name='criteriaof'		}{/if}
 new Listview({ldelim}template: 'comment', id: 'comments', name: LANG.tab_comments, tabs: tabsRelated, parent: 'listview-generic', data: lv_comments{rdelim});
+new Listview({ldelim}template: 'comment', id: 'commentswh', name: LANG.tab_commentswh, tabs: tabsRelated, parent: 'listview-generic', data: lv_commentswh{rdelim});
+new Listview({ldelim}template: 'comment', id: 'commentsalkz', name: LANG.tab_commentsalkz, tabs: tabsRelated, parent: 'listview-generic', data: lv_commentsalkz{rdelim});
 tabsRelated.flush();
 </script>
 

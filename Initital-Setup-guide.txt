@@ -1,0 +1,189 @@
+# Supported OS:
+	Ubuntu Server 18.04 LTS
+
+# -=-=-=-=-=-=-=-=-=- Post OS install steps -=-=-=-=-=-=-=-=-=-
+	apt-get update
+	apt-get upgrade
+	
+	# Install any packages you will need later
+	apt-get install p7zip-full -y
+
+	# Enable SSH
+	nano /etc/ssh/sshd_config
+		Uncomment line "Port 22"
+			Save
+			
+	service sshd restart
+
+	# Get your IP address so you can SSH (If running on a host, you'll need to get the IP from control panel and allow SSH in the firewall (Port 22))
+	# You may now SSH into your host, which will allow you to copy paste the remaining commands
+
+# -=-=-=-=-=-=-=-=-=- Setting up and configuring your HTTPD environment - Here we install Apache, PHP and MySQL (Known as LAMP) -=-=-=-=-=-=-=-=-=-
+	apt-get install apache2 -y
+
+	# The following command will likely fail.
+	apache2ctl configtest
+
+	# Modify the following file to set it up for your domain/IP
+	nano /etc/apache2/apache2.conf
+		Insert a new line at the very bottom of the file to read "ServerName domain_or_IP", replacing "domain_or_IP" with whatever domain or IP you plan to use.
+			Save
+
+	# Rerun this command. It should now no longer throw an error.
+	apache2ctl configtest
+
+	# Restart Apache for your changes to take effect
+	systemctl restart apache2
+
+	# Now adjust your firewall to allow HTTPD traffic - This will open up ports 80 and 443. Please ensure these ports are open on your firewall.
+	ufw allow in "Apache Full"
+
+	# Your web server should now be reachable via a web browser, using your domain or your IP
+
+	# Now to install MySQL, this is the database server that will store all the data the site will use.
+	apt-get install mysql-server -y
+	
+	# Once installed, you need to ensure that it is relatively secure by running the Best Practices wizard. You can answer any way you like, but is advised to just say Y to all.
+	mysql_secure_installation
+	
+	# You will need to modify a config file to allow it to work with the aowow codebase
+	nano /etc/mysql/mysql.conf.d/mysqld.cnf
+		add the following line AFTER [mysqld]
+			sql-mode        = ""
+			
+	# Restart mysql to apply changes
+	service mysql restart
+	
+	# Now we are to install PHP. We will need to use a custom repo for this as PHP 7 is not compatible with the libraries used in this site.
+	add-apt-repository ppa:ondrej/php
+	apt-get update
+	apt-get install php5.6 php5.6-simplexml php5.6-gd php5.6-mysql php5.6-mbstring -y
+	a2enmod php5.6
+	
+	# Some config for PHP is required to ensure php pages are loaded over other pages
+	nano /etc/apache2/mods-enabled/dir.conf
+		Under line <IfModule mod_dir.c> , move index.php to be the first in the list. It should read the following
+			DirectoryIndex index.php index.html index.cgi index.pl index.xhtml index.htm
+	
+	
+	# Restart apache2
+	service apache2 restart
+	
+# -=-=-=-=-=-=-=-=-=- Aowow Deployment and Config -=-=-=-=-=-=-=-=-=-
+	# cd into the web directory and git clone the repo
+	cd /var/www/html
+	git clone https://github.com/MarkusNemesis/VanillaWoWDB2.git
+		
+	# Download the latest database file from the https://github.com/brotalnia/database repo, into your users home folder. In this case, the latest DB was June 8th
+	cd ~/
+	wget https://raw.githubusercontent.com/brotalnia/database/master/world_full_08_june_2018.7z
+	7z x ./world_full_08_june_2018.7z
+	
+	# Create the aowow and realmd databases and create your database user
+	mysql -u root -p
+		type the following:
+			create database aowow;
+			create database realmd;
+			GRANT ALL PRIVILEGES ON aowow.* TO '<YOURUSERNAME>'@'localhost' IDENTIFIED BY '<YOURPASSWORD>';
+			GRANT ALL PRIVILEGES ON realmd.* TO '<YOURUSERNAME>'@'localhost' IDENTIFIED BY '<YOURPASSWORD>';
+			exit
+		
+	# Import the world DB contents into the aowow database in mysql
+	mysql -u root -p aowow < world_full_08_june_2018.sql
+	
+	# Import the Aowow sql files
+	cd /var/www/html/VanillaWoWDB2/tools/sql/aowow
+	mysql -u root -p aowow < aowow.sql
+	mysql -u root -p aowow < aowow_zones.sql
+	mysql -u root -p aowow < faction.sql
+	mysql -u root -p aowow < indexes.sql
+	
+	# Import the realmd sql file
+	cd /var/www/html/VanillaWoWDB2/tools/sql/realmd
+	mysql -u root -p realmd < realmd.sql
+	
+	# Configure your site via making a new config file.
+	cd /var/www/html/VanillaWoWDB2/configs/
+	cp ./config.php.in ./config.php
+	nano ./config.php
+		Make your desired changes to the config (Patch version, site name. Use the mysql database credentials you set in the steps above.)
+
+# -=-=-=-=-=-=-=-=-=- Importing Aowow comments -=-=-=-=-=-=-=-=-=-
+
+	# If you want to import comments from Aowow, you can find them here: https://github.com/Sunksat/aowow_comments
+	cd ~/
+	git clone https://github.com/Sunksat/aowow_comments
+	
+	# You'll need to modify the accounts SQL files to fit the realmd we are using. You can do this with a find/replace via sed
+	find ./ -type f -exec sed -i -e "s/changepass1234/RANDOMGIBBERISH/i" {} \;
+	
+	# You will need to convert the links inside the comments to point to your database. To do so, run the following as you did before. Note: You'll need to ESCAPE out the slashes in this string. Use this site to help you: http://dwaves.de/tools/escape/
+	find ./ -type f -exec sed -i -e "s/http:\/\/DBURLHERE\//http:\/\/yourwebsitenamehere.com\//g" {} \;
+	
+	# You may have some comments that break the import process due to not being cleaned correctly before importing. If this occurs, fix the troublesome lines and then run the following before attempting to re-import them
+	find ./ -type f -exec sed -i -e "s/INSERT INTO/REPLACE INTO/i" {} \;
+	
+	# You will need to import each type separately by running the following. 
+	cd ~/aowow_comments/aowow_comments_dbvanilla/
+	
+	# WoWHead Comments
+	cd ./aowow_comments_dbvanilla
+	
+	# Create tables
+	mysql -u root -p aowow < aowow_comments_wh.sql
+	mysql -u root -p aowow < aowow_comments_rates_wh.sql
+	mysql -u root -p realmd < aowow_comments_account_wh.sql
+	
+	# Items
+	mysql -u root -p aowow < ./items/htmlfix/aowow_comments_items_comments_HTMLFIX_sql_FINAL.sql
+	mysql -u root -p aowow < ./items/aowow_comments_items_ratings_sql_FINAL.sql
+	mysql -u root -p realmd < ./items/aowow_comments_items_accounts_sql_FINAL.sql
+
+	# Item Sets
+	mysql -u root -p aowow < ./itemset/htmlfix/aowow_comments_itemset_comments_sql_FINAL.sql
+	mysql -u root -p aowow < ./itemset/aowow_comments_itemset_comments_rating_sql_FINAL.sql
+	mysql -u root -p realmd < ./itemset/aowow_comments_itemset_accounts_sql_FINAL.sql
+	
+	# NPCs
+	mysql -u root -p aowow < ./npc/htmfix/aowow_comments_npc_comments_HTMLFIX_sql_FINAL.sql
+	mysql -u root -p aowow < ./npc/aowow_comments_npc_ratings_sql_FINAL.sql
+	mysql -u root -p realmd < ./npc/aowow_comments_npc_accounts_sql_FINAL.sql
+
+	# Objects
+	mysql -u root -p aowow < ./object/htmlfix/aowow_comments_objects_comments_HTMLFIX_sql_FINAL.sql
+	mysql -u root -p aowow < ./object/aowow_comments_objects_ratings_sql_FINAL.sql
+	mysql -u root -p realmd < ./object/aowow_comments_objects_accounts_sql_FINAL.sql
+
+	# Quests
+	mysql -u root -p aowow < ./quest/htmlfix/aowow_comments_quests_comments_HTMLFIX_sql_FINAL.sql
+	mysql -u root -p aowow < ./quest/aowow_comments_quests_ratings_sql_FINAL.sql
+	mysql -u root -p realmd < ./quest/aowow_comments_quests_accounts_sql_FINAL.sql
+
+	# Zones
+	mysql -u root -p aowow < ./zone/htmlfix/aowow_comments_zone_comments_HTMLFIX_sql_FINAL.sql
+	mysql -u root -p aowow < ./zone/aowow_comments_zone_ratings_sql_FINAL.sql
+	mysql -u root -p realmd < ./zone/aowow_comments_zone_accounts_sql_FINAL.sql
+	
+	# Allakhazam Comments:
+	cd ..
+	cd ./aowow_allakhazam_comments
+	
+	# Create tables
+	mysql -u root -p aowow < aowow_comments_alkz.sql
+	mysql -u root -p aowow < aowow_comments_rates_alkz.sql
+	mysql -u root -p realmd < aowow_comments_account_alkz.sql
+	
+	# Items
+	mysql -u root -p aowow < ./items/item_comments_allakhazam.sql
+	mysql -u root -p aowow < ./items/item_comments_ratings_allakhazam.sql
+	mysql -u root -p realmd < ./items/item_account_allakhazam.sql
+	
+	# NPCs
+	mysql -u root -p aowow < ./items/npc_comments_allakhazam.sql
+	mysql -u root -p aowow < ./items/npc_comments_ratings_allakhazam.sql
+	mysql -u root -p realmd < ./items/npc_account_allakhazam.sql
+	
+	# Quests
+	mysql -u root -p aowow < ./items/quest_comments_allakhazam.sql
+	mysql -u root -p aowow < ./items/quest_comments_ratings_allakhazam.sql
+	mysql -u root -p realmd < ./items/quest_account_allakhazam.sql
